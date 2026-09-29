@@ -157,7 +157,77 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html,
   body {
-    @apply bg-background text-foreground;
+    min-height: 100%;
+    background: #080c13;
+  }
+  body {
+    @apply text-foreground;
+    margin: 0;
+  }
+}
+
+@layer utilities {
+  .map-grid {
+    background-image: linear-gradient(rgba(73, 102, 131, 0.09) 1px, transparent 1px), linear-gradient(90deg, rgba(73, 102, 131, 0.09) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  .eyebrow {
+    color: #718198;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    line-height: 1.2;
+  }
+
+  .voice-glow {
+    animation: voice-glow 2s ease-in-out infinite;
+  }
+
+  .voice-bars span {
+    width: 3px;
+    height: 8px;
+    border-radius: 999px;
+    background: #00e5ff;
+    animation: voice-wave 0.8s ease-in-out infinite alternate;
+  }
+
+  .scrollbar-none,
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar,
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .animate-toast {
+    animation: toast-in 180ms ease-out both;
+  }
+}
+
+@keyframes voice-wave {
+  from { transform: scaleY(0.55); opacity: 0.48; }
+  to { transform: scaleY(1.9); opacity: 1; }
+}
+
+@keyframes voice-glow {
+  0%, 100% { box-shadow: 0 0 16px rgba(0, 229, 255, 0.16); }
+  50% { box-shadow: 0 0 30px rgba(0, 229, 255, 0.35); }
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
   }
 }

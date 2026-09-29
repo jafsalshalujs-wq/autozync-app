@@ -99,7 +99,7 @@ function IconButton({ children, label, onClick, className = '' }: { children: Re
 
 function MapSimulation({ onVehicle }: { onVehicle: (vehicle: typeof vehicles[number]) => void }) {
   return (
-    <section aria-label="Nearby roadside assistance map" className="relative h-[224px] overflow-hidden rounded-[24px] border border-[#29364b] bg-[#111b2a]">
+    <section aria-label="Nearby roadside assistance map" className="relative h-[176px] overflow-hidden rounded-[24px] border border-[#29364b] bg-[#111b2a] sm:h-[200px]">
       <div className="absolute inset-0 map-grid opacity-70" />
       <svg className="absolute inset-0 size-full" viewBox="0 0 440 224" preserveAspectRatio="none" aria-hidden="true">
         <path d="M-20 49 C85 68 110 8 199 38 S327 81 458 32" fill="none" stroke="#263447" strokeWidth="13" />
@@ -207,7 +207,7 @@ export default function AutozyncApp() {
 
   return (
     <div className="min-h-[100dvh] bg-[#080c13] text-slate-100 sm:flex sm:justify-center sm:bg-[radial-gradient(ellipse_at_50%_0%,#122439_0%,#080c13_58%)]">
-      <div className="app-shell relative flex h-[100dvh] min-h-[660px] w-full max-w-[460px] flex-col overflow-hidden border-x border-white/[0.055] bg-[#0a0f18] shadow-[0_0_90px_rgba(0,0,0,0.42)]">
+      <div className="app-shell relative flex h-[100dvh] min-h-[100dvh] w-full max-w-[460px] flex-col overflow-hidden border-x border-white/[0.055] bg-[#0a0f18] shadow-[0_0_90px_rgba(0,0,0,0.42)]">
         <div className="relative z-30 flex h-[52px] shrink-0 items-center justify-center border-b border-white/[0.055] bg-[#0e1521] px-3">
           <div className="flex items-center gap-1 rounded-full border border-white/[0.08] bg-[#151f2e] p-1 text-[10px]">
             <span className="px-1.5 font-medium text-slate-500">Viewing as</span>
