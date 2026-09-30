@@ -20,11 +20,7 @@ export const metadata: Metadata = {
     telephone: false,
   },
   icons: {
-    icon: [
-      { url: '/logo.png', type: 'image/png', sizes: '1024x1024' },
-      { url: '/logo-192.png', type: 'image/png', sizes: '192x192' },
-    ],
-    apple: [{ url: '/apple-touch-icon.png', type: 'image/png', sizes: '180x180' }],
+    icon: [{ url: '/logo.png', type: 'image/png', sizes: '1024x1024' }],
   },
 }
 
@@ -43,6 +39,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <link rel="apple-touch-icon" href="/logo.png" />
+      </head>
       <body className="antialiased">
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}
