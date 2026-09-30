@@ -3,8 +3,8 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Autozync | Roadside assistance, in sync',
-  description: 'Premium roadside assistance, trusted mechanics, and verified garage services across Kochi.',
+  title: 'Autozync | Automotive care, in sync',
+  description: 'Roadside SOS, verified garages, spare parts, digital service history, and tools for automotive partners.',
   generator: 'v0.app',
   icons: {
     icon: [
@@ -30,7 +30,7 @@ export const viewport: Viewport = {
   themeColor: '#080c13',
   width: 'device-width',
   initialScale: 1,
-  userScalable: false,
+  userScalable: true,
 }
 
 export default function RootLayout({
