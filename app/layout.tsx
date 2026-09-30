@@ -6,35 +6,31 @@ export const metadata: Metadata = {
   title: 'AutoZync | Automotive care, in sync',
   description: 'Roadside SOS, verified garages, spare parts, digital service history, and tools for automotive partners.',
   generator: 'v0.app',
+  applicationName: 'AutoZync',
+  manifest: '/manifest.webmanifest',
+  appleWebApp: {
+    capable: true,
+    title: 'AutoZync',
+    statusBarStyle: 'black-translucent',
+  },
+  other: {
+    'apple-mobile-web-app-capable': 'yes',
+  },
+  formatDetection: {
+    telephone: false,
+  },
   icons: {
     icon: [
-      {
-        url: '/logo.png',
-        type: 'image/png',
-      },
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
+      { url: '/logo.png', type: 'image/png', sizes: '1024x1024' },
+      { url: '/logo-192.png', type: 'image/png', sizes: '192x192' },
     ],
-    apple: '/apple-icon.png',
+    apple: [{ url: '/apple-touch-icon.png', type: 'image/png', sizes: '180x180' }],
   },
 }
 
 export const viewport: Viewport = {
-  colorScheme: 'light dark',
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#f7f9fc' },
-    { media: '(prefers-color-scheme: dark)', color: '#080c13' },
-  ],
+  colorScheme: 'dark',
+  themeColor: '#000000',
   width: 'device-width',
   initialScale: 1,
   userScalable: true,
