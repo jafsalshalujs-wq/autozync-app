@@ -65,7 +65,7 @@ export async function loadAutozyncData(userId: string): Promise<AutozyncRemoteDa
     supabase.from('customer_vehicles').select('id,registration,model,year,fuel,kind,created_at').eq('owner_id', userId).order('created_at', { ascending: false }),
     supabase.from('service_requests').select('id,service_name,vehicle_type,vehicle_model,location,coordinates,note,status,created_at').eq('customer_id', userId).order('created_at', { ascending: false }),
     supabase.from('garage_partners').select('business_name,phone,address,services,approval_status').eq('user_id', userId).maybeSingle(),
-    supabase.from('digital_invoices').select('id,customer_name,customer_email,vehicle,line_items,total,currency,created_at').order('created_at', { ascending: false }),
+    supabase.from('digital_invoices').select('id,customer_name,customer_email,vehicle,line_items,total,currency,created_at').eq('garage_partner_id', userId).order('created_at', { ascending: false }),
   ])
 
   const firstError = [profileResult.error, vehiclesResult.error, requestsResult.error, garageResult.error, invoicesResult.error].find(Boolean)
@@ -88,7 +88,7 @@ export function subscribeToAutozyncData(userId: string, refresh: () => void) {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'customer_vehicles', filter: `owner_id=eq.${userId}` }, refresh)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'service_requests', filter: `customer_id=eq.${userId}` }, refresh)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'garage_partners', filter: `user_id=eq.${userId}` }, refresh)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'digital_invoices' }, refresh)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'digital_invoices', filter: `garage_partner_id=eq.${userId}` }, refresh)
     .subscribe()
 
   return () => {
