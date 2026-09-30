@@ -113,10 +113,9 @@ function cx(...classes: (string | false | undefined)[]) {
 }
 
 function BrandLogo() {
-  const [imageFailed, setImageFailed] = useState(false)
-
   return <span aria-hidden="true" className="relative flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-amber-300/30 bg-gradient-to-br from-amber-300/20 to-orange-500/10 text-amber-200 shadow-[0_0_22px_rgba(251,146,60,0.12)]">
-    {!imageFailed ? <img src="/logo.png" alt="" className="size-full object-contain" onError={() => setImageFailed(true)} /> : <ShieldCheck size={21} strokeWidth={1.8} />}
+    <ShieldCheck size={21} strokeWidth={1.8} />
+    <span className="absolute inset-0 bg-contain bg-center bg-no-repeat" style={{ backgroundImage: 'url(/logo.png)' }} />
     <span className="absolute bottom-[6px] right-[6px] size-1.5 rounded-full bg-amber-300 shadow-[0_0_8px_rgba(251,191,36,0.9)]" />
   </span>
 }
