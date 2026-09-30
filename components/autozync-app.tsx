@@ -5,6 +5,7 @@ import type { FormEvent, ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import { useAutozyncData } from '@/lib/autozync-data'
 import type { InvoiceRow, ServiceRequestRow } from '@/lib/supabase/client'
+import VehicleLoader from '@/components/vehicle-loader'
 import {
   Activity,
   ArrowRight,
@@ -111,8 +112,13 @@ function cx(...classes: (string | false | undefined)[]) {
   return classes.filter(Boolean).join(' ')
 }
 
-function GearMark({ small = false }: { small?: boolean }) {
-  return <span aria-hidden="true" className={cx('relative flex shrink-0 items-center justify-center border border-cyan-300/25 bg-cyan-300/[0.08] text-cyan-200 shadow-[0_0_24px_rgba(0,229,255,0.1)]', small ? 'size-9 rounded-xl' : 'size-11 rounded-[15px]')}><Cog size={small ? 19 : 23} strokeWidth={1.8} /><span className="absolute right-[7px] top-[7px] size-1.5 rounded-full bg-cyan-300" /></span>
+function BrandLogo() {
+  const [imageFailed, setImageFailed] = useState(false)
+
+  return <span aria-hidden="true" className="relative flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-amber-300/30 bg-gradient-to-br from-amber-300/20 to-orange-500/10 text-amber-200 shadow-[0_0_22px_rgba(251,146,60,0.12)]">
+    {!imageFailed ? <img src="/logo.png" alt="" className="size-full object-contain" onError={() => setImageFailed(true)} /> : <ShieldCheck size={21} strokeWidth={1.8} />}
+    <span className="absolute bottom-[6px] right-[6px] size-1.5 rounded-full bg-amber-300 shadow-[0_0_8px_rgba(251,191,36,0.9)]" />
+  </span>
 }
 
 function IconAction({ icon: Icon, label, onClick, className = '' }: { icon: IconType; label: string; onClick: () => void; className?: string }) {
@@ -215,6 +221,7 @@ export default function AutozyncApp() {
   const [partnerJobBusyId, setPartnerJobBusyId] = useState<string | null>(null)
   const [requestNote, setRequestNote] = useState('')
   const [requestStage, setRequestStage] = useState(0)
+  const [loaderMessage, setLoaderMessage] = useState<string | null>('Starting your AutoZync experience')
   const [estimateStatus, setEstimateStatus] = useState<'pending' | 'approved' | 'declined'>('pending')
   const [estimateAmount, setEstimateAmount] = useState(3050)
   const [estimateDetails, setEstimateDetails] = useState('Brake pads ₹2,400 · Labour ₹650')
@@ -255,6 +262,11 @@ export default function AutozyncApp() {
     cost: 0,
     vehicle: request.vehicle_model,
   }))
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setLoaderMessage(null), 2800)
+    return () => window.clearTimeout(timeout)
+  }, [])
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -467,42 +479,49 @@ const result = authMode === 'sign-up'
   }
   const submitRoadsideRequest = async (responderName?: string, returnDialog: Dialog = 'responders') => {
     if (!requireSignIn(returnDialog)) return
+    setLoaderMessage('Finding the right roadside support')
 
-    let requestLocation = location.trim()
-    let requestCoordinates = coordinates
-    if (navigator.geolocation) {
-      await new Promise<void>((resolve) => {
-        navigator.geolocation.getCurrentPosition((position) => {
-          requestCoordinates = `${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`
-          requestLocation = `${requestCoordinates} · Current location`
-          resolve()
-        }, () => resolve(), { enableHighAccuracy: true, timeout: 6000 })
+    try {
+      let requestLocation = location.trim()
+      let requestCoordinates = coordinates
+      if (navigator.geolocation) {
+        await new Promise<void>((resolve) => {
+          navigator.geolocation.getCurrentPosition((position) => {
+            requestCoordinates = `${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`
+            requestLocation = `${requestCoordinates} · Current location`
+            resolve()
+          }, () => resolve(), { enableHighAccuracy: true, timeout: 6000 })
+        })
+        setCoordinates(requestCoordinates)
+        setLocation(requestLocation)
+      }
+
+      const { error } = await supabase.from('service_requests').insert({
+        customer_id: userId,
+        service_name: selectedService,
+        vehicle_type: vehicleType,
+        vehicle_model: vehicles[0]?.model ?? '',
+        location: requestLocation,
+        coordinates: requestCoordinates,
+        note: [responderName ? `Preferred responder: ${responderName}` : '', requestNote.trim()].filter(Boolean).join(' · '),
       })
-      setCoordinates(requestCoordinates)
-      setLocation(requestLocation)
-    }
-
-    const { error } = await supabase.from('service_requests').insert({
-      customer_id: userId,
-      service_name: selectedService,
-      vehicle_type: vehicleType,
-      vehicle_model: vehicles[0]?.model ?? '',
-      location: requestLocation,
-      coordinates: requestCoordinates,
-      note: [responderName ? `Preferred responder: ${responderName}` : '', requestNote.trim()].filter(Boolean).join(' · '),
-    })
-    if (error) {
+      if (error) {
+        notify('Could not save your roadside request. Please try again.')
+        return
+      }
+      await mutateRemote()
+      setRequestNote('')
+      setRequestStage(0)
+      setEstimateStatus('pending')
+      setActiveRequest(selectedService)
+      setDialog(null)
+      goToTab('sos')
+      notify(`${selectedService} request saved${responderName ? ` for ${responderName}` : ''} with your location.`)
+    } catch {
       notify('Could not save your roadside request. Please try again.')
-      return
+    } finally {
+      setLoaderMessage(null)
     }
-    await mutateRemote()
-    setRequestNote('')
-    setRequestStage(0)
-    setEstimateStatus('pending')
-    setActiveRequest(selectedService)
-    setDialog(null)
-    goToTab('sos')
-    notify(`${selectedService} request saved${responderName ? ` for ${responderName}` : ''} with your location.`)
   }
 
   const requestService = async (event: FormEvent<HTMLFormElement>) => {
@@ -522,34 +541,49 @@ const result = authMode === 'sign-up'
   const cancelActiveRequest = async () => {
     const request = remoteData?.requests.find((item) => item.service_name === activeRequest && !['completed', 'cancelled'].includes(item.status))
     if (!request || !userId) return
-    const { error } = await supabase.from('service_requests').update({ status: 'cancelled' }).eq('id', request.id).eq('customer_id', userId)
-    if (error) {
+    setLoaderMessage('Updating your roadside request')
+    try {
+      const { error } = await supabase.from('service_requests').update({ status: 'cancelled' }).eq('id', request.id).eq('customer_id', userId)
+      if (error) {
+        notify('Could not close the roadside request. Please try again.')
+        return
+      }
+      await mutateRemote()
+      setRequestStage(0)
+      notify('Roadside request closed.')
+    } catch {
       notify('Could not close the roadside request. Please try again.')
-      return
+    } finally {
+      setLoaderMessage(null)
     }
-    await mutateRemote()
-    setRequestStage(0)
-    notify('Roadside request closed.')
   }
   const handlePartnerJobAction = async (request: ServiceRequestRow) => {
     if (!userId || partnerJobBusyId) return
     const nextStatus = request.status === 'open' ? 'assigned' : request.status === 'assigned' ? 'en_route' : 'completed'
+    const loaderCopy = nextStatus === 'assigned' ? 'Assigning this roadside request' : nextStatus === 'en_route' ? 'Updating the customer on your route' : 'Completing this service request'
     const update = request.status === 'open'
       ? { status: nextStatus, assigned_partner_id: userId }
       : { status: nextStatus }
     setPartnerJobBusyId(request.id)
-    const updateQuery = supabase.from('service_requests').update(update).eq('id', request.id).eq('status', request.status).select('id')
-    const { data: updatedRequest, error } = request.status === 'open'
-      ? await updateQuery.is('assigned_partner_id', null).maybeSingle()
-      : await updateQuery.eq('assigned_partner_id', userId).maybeSingle()
-    setPartnerJobBusyId(null)
-    if (error || !updatedRequest) {
-      notify('This job could not be updated. It may have been claimed or changed by another garage.')
+    setLoaderMessage(loaderCopy)
+    try {
+      const updateQuery = supabase.from('service_requests').update(update).eq('id', request.id).eq('status', request.status).select('id')
+      const { data: updatedRequest, error } = request.status === 'open'
+        ? await updateQuery.is('assigned_partner_id', null).maybeSingle()
+        : await updateQuery.eq('assigned_partner_id', userId).maybeSingle()
+      if (error || !updatedRequest) {
+        notify('This job could not be updated. It may have been claimed or changed by another garage.')
+        await mutateRemote()
+        return
+      }
       await mutateRemote()
-      return
+      notify(nextStatus === 'completed' ? 'Service marked complete. The customer has been invited to review.' : nextStatus === 'en_route' ? 'Customer updated: your garage is on the way.' : 'Job accepted and assigned to your garage.')
+    } catch {
+      notify('This job could not be updated. Please try again.')
+    } finally {
+      setPartnerJobBusyId(null)
+      setLoaderMessage(null)
     }
-    await mutateRemote()
-    notify(nextStatus === 'completed' ? 'Service marked complete. The customer has been invited to review.' : nextStatus === 'en_route' ? 'Customer updated: your garage is on the way.' : 'Job accepted and assigned to your garage.')
   }
 
   const openServiceReview = (request: ServiceRequestRow) => {
@@ -746,7 +780,7 @@ const result = authMode === 'sign-up'
   return <div data-theme={resolvedTheme} className="app-canvas min-h-[100dvh] bg-[#070b11] text-slate-100 sm:flex sm:justify-center sm:bg-[radial-gradient(ellipse_at_50%_0%,#13263a_0%,#070b11_60%)]">
     <div data-theme={resolvedTheme} className="app-shell relative flex h-[100dvh] min-h-[100dvh] w-full max-w-[480px] flex-col overflow-hidden border-x border-white/[0.055] bg-[#0a1019] shadow-[0_0_90px_rgba(0,0,0,0.48)]">
       <header className="z-30 flex shrink-0 items-center justify-between gap-2.5 border-b border-white/[0.06] bg-[#0e1520] px-3 py-2.5 max-[360px]:flex-wrap max-[360px]:gap-y-2">
-        <div className="flex shrink-0 items-center gap-2.5 max-[360px]:w-full"><GearMark small /><div className="shrink-0"><div className="whitespace-nowrap text-[16px] font-extrabold tracking-[-0.045em] text-white">Autozync<span className="text-cyan-300">.</span></div><div className="whitespace-nowrap text-[9px] font-medium text-slate-500">Mobility, in sync</div></div></div>
+        <div className="flex shrink-0 items-center gap-2.5 max-[360px]:w-full"><BrandLogo /><div className="shrink-0"><div className="whitespace-nowrap text-[16px] font-extrabold tracking-[-0.045em] text-white">AutoZync<span className="text-amber-300">.</span></div><div className="whitespace-nowrap text-[9px] font-medium text-slate-500">Mobility, in sync</div></div></div>
         <div className="flex shrink-0 items-center gap-1 sm:gap-1.5 max-[360px]:ml-auto">
           <button type="button" onClick={() => setDialog('checkout')} aria-label={`Open shopping cart, ${cartCount} items`} className="relative z-0 flex size-9 shrink-0 items-center justify-center rounded-xl border border-white/[0.09] bg-white/[0.035] text-slate-300 transition hover:border-cyan-300/30 hover:text-cyan-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 sm:size-10"><ShoppingCart size={17} />{cartCount > 0 && <span aria-hidden="true" className="absolute -right-1 -top-1 z-10 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-[#0e1520] bg-cyan-300 px-1 text-[10px] font-black leading-none text-slate-950">{cartCount > 99 ? '99+' : cartCount}</span>}</button>
           <label className="sr-only" htmlFor="language-select">Choose language</label>
@@ -766,7 +800,7 @@ const result = authMode === 'sign-up'
             <section><SectionHeading eyebrow="OPEN NOW · 24/7 OPTIONS" title="Nearby garages" /><div className="flex flex-col gap-3">{displayGarages.slice(0, 2).map((garage) => <GarageCard key={garage.name} garage={garage} onCall={makeCall} onMessage={(garageName) => { setSupportContext(garageName); setDialog('support') }} />)}</div></section>
           </div>}
           {tab === 'sos' && <div className="flex flex-col gap-5"><div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-200">Fast-track help</p><h1 className="mt-1 text-2xl font-extrabold tracking-tight">{copy.emergency}</h1><p className="mt-1 text-sm text-slate-400">Choose what happened. No long questionnaire.</p></div><div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">{['Cars', 'Bikes / scooters', 'Commercial / heavy'].map((type) => <button type="button" key={type} onClick={() => setVehicleType(type)} className={cx('min-h-11 shrink-0 rounded-full border px-4 text-xs font-bold', vehicleType === type ? 'border-cyan-300/40 bg-cyan-300/[0.1] text-cyan-100' : 'border-white/10 bg-white/[0.03] text-slate-400')}>{type}</button>)}</div><div className="flex flex-col gap-3">{serviceOptions.map(({ name, detail, price, icon: Icon }) => <button key={name} type="button" onClick={() => { setSelectedService(name); setDialog('responders') }} className="flex min-h-[84px] items-center gap-3 rounded-[20px] border border-white/[0.08] bg-[#131d2b] p-3.5 text-left hover:border-cyan-300/35"><span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-cyan-300/[0.09] text-cyan-200"><Icon size={22} /></span><span className="min-w-0 flex-1"><span className="block text-sm font-bold text-white">{name}</span><span className="mt-1 block text-xs text-slate-400">{detail}</span></span><span className="text-right"><span className="block text-xs font-bold text-cyan-100">{price}</span><ArrowRight size={16} className="ml-auto mt-2 text-slate-500" /></span></button>)}</div><NearbyRadar onLocate={locateMe} />
-            {activeRequest && <Panel className="border-cyan-300/20"><div className="flex items-center justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[0.15em] text-cyan-200">Active roadside request</p><h2 className="mt-1 text-base font-bold">{activeRequest}</h2></div><StatusBadge tone={requestStage >= 2 ? 'green' : 'cyan'}>{['Partner assigned', 'On the way', 'Arrived'][requestStage] ?? 'Partner assigned'}</StatusBadge></div><div className="mt-4 flex items-center justify-between rounded-xl bg-[#0b131e] p-3 text-xs"><span className="text-slate-400">Rajesh K. · Verified mechanic</span><span className="font-bold text-cyan-100">{requestStage === 0 ? '6 min away' : requestStage === 1 ? '3 min away' : 'At your location'}</span></div><div className="mt-3 grid grid-cols-2 gap-2"><button type="button" onClick={() => makeCall('Rajesh K. · Verified mechanic')} className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.07] text-xs font-bold text-cyan-100"><Phone size={15} /> Call verified partner</button><a target="_blank" rel="noreferrer" href="#" onClick={(event) => { event.preventDefault(); setDialog('support') }} className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-300/[0.07] text-xs font-bold text-emerald-100"><MessageCircle size={15} /> WhatsApp location</a></div><div className="mt-3 flex gap-2"><button type="button" onClick={() => setRequestStage((stage) => Math.min(2, stage + 1))} className="min-h-11 flex-1 rounded-xl border border-white/10 text-xs font-bold text-slate-300">Simulate trip update</button><button type="button" onClick={() => void cancelActiveRequest()} className="min-h-11 rounded-xl px-3 text-xs font-semibold text-slate-500">Close</button></div></Panel>}
+            {activeRequest && <Panel className="border-cyan-300/20"><div className="flex items-center justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[0.15em] text-cyan-200">Active roadside request</p><h2 className="mt-1 text-base font-bold">{activeRequest}</h2></div><StatusBadge tone={requestStage >= 2 ? 'green' : 'cyan'}>{['Partner assigned', 'On the way', 'Arrived'][requestStage] ?? 'Partner assigned'}</StatusBadge></div><div className="mt-4 flex items-center justify-between rounded-xl bg-[#0b131e] p-3 text-xs"><span className="text-slate-400">Rajesh K. · Verified mechanic</span><span className="font-bold text-cyan-100">{requestStage === 0 ? '6 min away' : requestStage === 1 ? '3 min away' : 'At your location'}</span></div><div className="mt-3 grid grid-cols-2 gap-2"><button type="button" onClick={() => makeCall('Rajesh K. · Verified mechanic')} className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.07] text-xs font-bold text-cyan-100"><Phone size={15} /> Call verified partner</button><a target="_blank" rel="noreferrer" href="#" onClick={(event) => { event.preventDefault(); setDialog('support') }} className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-300/[0.07] text-xs font-bold text-emerald-100"><MessageCircle size={15} /> WhatsApp location</a></div><div className="mt-3 flex gap-2"><button type="button" onClick={() => { setLoaderMessage('Refreshing your service progress'); window.setTimeout(() => { setRequestStage((stage) => Math.min(2, stage + 1)); setLoaderMessage(null) }, 1100) }} className="min-h-11 flex-1 rounded-xl border border-white/10 text-xs font-bold text-slate-300">Simulate trip update</button><button type="button" onClick={() => void cancelActiveRequest()} className="min-h-11 rounded-xl px-3 text-xs font-semibold text-slate-500">Close</button></div></Panel>}
             <Panel><SectionHeading eyebrow="NEARBY & VERIFIED" title="Call or message a garage" /><div className="flex flex-col gap-3">{displayGarages.map((garage) => <GarageCard key={garage.name} garage={garage} onCall={makeCall} onMessage={(garageName) => { setSupportContext(garageName); setDialog('support') }} />)}</div><div className="mt-4 rounded-xl border border-white/[0.07] bg-[#0b131e] p-3 text-xs text-slate-400"><span className="font-bold text-white">Clear pricing:</span> Towing ₹250 base + ₹18/km · Standard labour from ₹450</div></Panel>
             {estimateStatus === 'pending' && <Panel className="border-amber-200/20"><div className="flex items-center gap-2"><FileText size={18} className="text-amber-200" /><h2 className="text-sm font-bold">Repair estimate · Star Auto Care</h2></div><p className="mt-2 text-xs text-slate-400">{estimateDetails} · Estimated total ₹{estimateAmount.toLocaleString('en-IN')}</p><p className="mt-1 text-[10px] text-slate-500">Work starts only after your approval.</p><div className="mt-3 grid grid-cols-2 gap-2"><button type="button" onClick={() => { setEstimateStatus('approved'); notify('Estimate approved. The garage can begin work.') }} className="min-h-11 rounded-xl bg-cyan-300 text-xs font-extrabold text-[#07141d]">Approve estimate</button><button type="button" onClick={() => { setEstimateStatus('declined'); notify('Estimate declined') }} className="min-h-11 rounded-xl border border-white/10 text-xs font-bold text-slate-300">Decline</button></div></Panel>}
             {estimateStatus !== 'pending' && <Panel><div className="flex items-center gap-2"><CheckCircle2 size={19} className="text-emerald-300" /><span className="text-sm font-bold">Estimate {estimateStatus}</span></div><p className="mt-1 text-xs text-slate-400">₹{estimateAmount.toLocaleString('en-IN')} · Star Auto Care</p></Panel>}
@@ -811,6 +845,7 @@ const result = authMode === 'sign-up'
       {callingPartner && <ModalFrame title="Simulated call" close={() => setCallingPartner(null)}><div className="flex flex-col items-center py-5 text-center"><span className="flex size-16 items-center justify-center rounded-full bg-emerald-300/10 text-emerald-200"><Phone size={26} /></span><p className="mt-4 text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-200">Simulated call · no connection made</p><h3 className="mt-2 text-lg font-bold">Calling {callingPartner.name} ({callingPartner.verified ? 'Verified Partner' : 'Demo contact'})…</h3><p className="mt-2 text-xs leading-relaxed text-slate-400">This prototype does not place a real phone call.</p><button type="button" onClick={() => setCallingPartner(null)} className="mt-6 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-rose-500/15 text-sm font-bold text-rose-100"><Phone size={16} /> End call</button></div></ModalFrame>}
       {dialog === 'login' && <ModalFrame title={authMode === 'sign-up' ? 'Create your Autozync account' : 'Sign in to Autozync'} close={() => { setDialog(null); setAuthError('') }}><form onSubmit={submitAuth} className="flex flex-col gap-3"><p className="text-xs leading-relaxed text-slate-400">{authMode === 'sign-up' ? 'Create a secure account to sync your vehicles, service requests, and garage records.' : 'Sign in to access your saved Autozync data.'}</p>{authMode === 'sign-up' && <><FormField label="Full name" value={authFullName} onChange={setAuthFullName} autoComplete="name" placeholder="Your name" required /><label className="flex flex-col gap-2 text-xs font-semibold text-slate-300">Account type<select value={authAccountType} onChange={(event) => setAuthAccountType(event.target.value as 'customer' | 'partner')} className={palette.input}><option value="customer">Customer</option><option value="partner">Garage partner</option></select></label></>}<FormField label="Email address" type="email" value={authEmail} onChange={setAuthEmail} autoComplete="email" placeholder="name@example.com" required /><FormField label="Password" type="password" value={authPassword} onChange={setAuthPassword} autoComplete={authMode === 'sign-up' ? 'new-password' : 'current-password'} minLength={8} placeholder="At least 8 characters" required /><p className="text-[10px] text-slate-500">Use at least 8 characters.</p>{authError && <p role="alert" className="rounded-lg border border-rose-300/20 bg-rose-300/[0.06] p-3 text-xs text-rose-100">{authError}</p>}<PrimaryButton type="submit" disabled={authBusy}>{authBusy ? 'Please wait…' : authMode === 'sign-up' ? 'Create account' : 'Sign in'}</PrimaryButton><button type="button" onClick={() => { setAuthMode((mode) => mode === 'sign-in' ? 'sign-up' : 'sign-in'); setAuthError('') }} className="min-h-10 text-xs font-semibold text-cyan-100">{authMode === 'sign-up' ? 'Already have an account? Sign in' : 'New to Autozync? Create an account'}</button><p className="text-center text-[10px] text-slate-500">Your account is secured by Supabase Auth. Garage and customer records are protected by row-level security.</p></form></ModalFrame>}
     </div>
+    <VehicleLoader message={loaderMessage} />
   </div>
 }
 

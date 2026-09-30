@@ -3,11 +3,15 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Autozync | Automotive care, in sync',
+  title: 'AutoZync | Automotive care, in sync',
   description: 'Roadside SOS, verified garages, spare parts, digital service history, and tools for automotive partners.',
   generator: 'v0.app',
   icons: {
     icon: [
+      {
+        url: '/logo.png',
+        type: 'image/png',
+      },
       {
         url: '/icon-light-32x32.png',
         media: '(prefers-color-scheme: light)',
