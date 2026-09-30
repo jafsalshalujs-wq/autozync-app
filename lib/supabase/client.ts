@@ -26,7 +26,15 @@ export type ServiceRequestRow = {
   coordinates: string
   note: string
   status: string
+  assigned_partner_id: string | null
   created_at: string
+}
+
+export type GarageRatingRow = {
+  user_id: string
+  business_name: string
+  average_rating: number | null
+  review_count: number
 }
 
 export type VehicleRow = {
@@ -54,27 +62,33 @@ export type AutozyncRemoteData = {
   profile: { id: string; email: string; full_name: string; account_type: string } | null
   vehicles: VehicleRow[]
   requests: ServiceRequestRow[]
+  reviews: { service_request_id: string }[]
+  garageRatings: GarageRatingRow[]
   garage: { business_name: string; phone: string; address: string; services: string[]; approval_status: string } | null
   invoices: InvoiceRow[]
 }
 
 export async function loadAutozyncData(userId: string): Promise<AutozyncRemoteData> {
   const supabase = createClient()
-  const [profileResult, vehiclesResult, requestsResult, garageResult, invoicesResult] = await Promise.all([
+  const [profileResult, vehiclesResult, requestsResult, reviewsResult, garageRatingsResult, garageResult, invoicesResult] = await Promise.all([
     supabase.from('profiles').select('id,email,full_name,account_type').eq('id', userId).maybeSingle(),
     supabase.from('customer_vehicles').select('id,registration,model,year,fuel,kind,created_at').eq('owner_id', userId).order('created_at', { ascending: false }),
-    supabase.from('service_requests').select('id,service_name,vehicle_type,vehicle_model,location,coordinates,note,status,created_at').eq('customer_id', userId).order('created_at', { ascending: false }),
+    supabase.from('service_requests').select('id,service_name,vehicle_type,vehicle_model,location,coordinates,note,status,assigned_partner_id,created_at').or(`customer_id.eq.${userId},assigned_partner_id.eq.${userId},and(status.eq.open,assigned_partner_id.is.null)`).order('created_at', { ascending: false }),
+    supabase.from('service_reviews').select('service_request_id').eq('reviewer_id', userId),
+    supabase.from('garage_public_ratings').select('user_id,business_name,average_rating,review_count'),
     supabase.from('garage_partners').select('business_name,phone,address,services,approval_status').eq('user_id', userId).maybeSingle(),
     supabase.from('digital_invoices').select('id,customer_name,customer_email,vehicle,line_items,total,currency,created_at').eq('garage_partner_id', userId).order('created_at', { ascending: false }),
   ])
 
-  const firstError = [profileResult.error, vehiclesResult.error, requestsResult.error, garageResult.error, invoicesResult.error].find(Boolean)
+  const firstError = [profileResult.error, vehiclesResult.error, requestsResult.error, reviewsResult.error, garageRatingsResult.error, garageResult.error, invoicesResult.error].find(Boolean)
   if (firstError) throw firstError
 
   return {
     profile: profileResult.data,
     vehicles: vehiclesResult.data ?? [],
     requests: requestsResult.data ?? [],
+    reviews: reviewsResult.data ?? [],
+    garageRatings: garageRatingsResult.data ?? [],
     garage: garageResult.data,
     invoices: invoicesResult.data ?? [],
   }
@@ -87,6 +101,7 @@ export function subscribeToAutozyncData(userId: string, refresh: () => void) {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `id=eq.${userId}` }, refresh)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'customer_vehicles', filter: `owner_id=eq.${userId}` }, refresh)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'service_requests', filter: `customer_id=eq.${userId}` }, refresh)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'service_reviews', filter: `reviewer_id=eq.${userId}` }, refresh)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'garage_partners', filter: `user_id=eq.${userId}` }, refresh)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'digital_invoices', filter: `garage_partner_id=eq.${userId}` }, refresh)
     .subscribe()
