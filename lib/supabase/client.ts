@@ -75,7 +75,7 @@ export async function loadAutozyncData(userId: string): Promise<AutozyncRemoteDa
     supabase.from('customer_vehicles').select('id,registration,model,year,fuel,kind,created_at').eq('owner_id', userId).order('created_at', { ascending: false }),
     supabase.from('service_requests').select('id,service_name,vehicle_type,vehicle_model,location,coordinates,note,status,assigned_partner_id,created_at').or(`customer_id.eq.${userId},assigned_partner_id.eq.${userId},and(status.eq.open,assigned_partner_id.is.null)`).order('created_at', { ascending: false }),
     supabase.from('service_reviews').select('service_request_id').eq('reviewer_id', userId),
-    supabase.from('garage_public_ratings').select('user_id,business_name,average_rating,review_count'),
+    supabase.rpc('get_garage_public_ratings'),
     supabase.from('garage_partners').select('business_name,phone,address,services,approval_status').eq('user_id', userId).maybeSingle(),
     supabase.from('digital_invoices').select('id,customer_name,customer_email,vehicle,line_items,total,currency,created_at').eq('garage_partner_id', userId).order('created_at', { ascending: false }),
   ])

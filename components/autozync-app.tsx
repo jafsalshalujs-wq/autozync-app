@@ -292,7 +292,7 @@ export default function AutozyncApp() {
   }, [remoteData])
 
   useEffect(() => {
-    if (!remoteData || remoteData.profile?.account_type !== 'customer') return
+    if (!remoteData || role !== 'customer' || remoteData.profile?.account_type !== 'customer') return
     const requestToReview = remoteData.requests.find((request) =>
       request.status === 'completed' && !remoteData.reviews.some((review) => review.service_request_id === request.id) && !dismissedReviewIds.includes(request.id),
     )
@@ -303,7 +303,7 @@ export default function AutozyncApp() {
     setReviewText('')
     setReviewError('')
     setDialog('review')
-  }, [remoteData, dismissedReviewIds])
+  }, [remoteData, role, dismissedReviewIds])
 
   useEffect(() => {
     if (dataError) setToast('Could not load your Autozync data. Please refresh and try again.')
@@ -538,12 +538,12 @@ const result = authMode === 'sign-up'
       ? { status: nextStatus, assigned_partner_id: userId }
       : { status: nextStatus }
     setPartnerJobBusyId(request.id)
-    const updateQuery = supabase.from('service_requests').update(update).eq('id', request.id).eq('status', request.status)
-    const { error } = request.status === 'open'
-      ? await updateQuery.is('assigned_partner_id', null)
-      : await updateQuery.eq('assigned_partner_id', userId)
+    const updateQuery = supabase.from('service_requests').update(update).eq('id', request.id).eq('status', request.status).select('id')
+    const { data: updatedRequest, error } = request.status === 'open'
+      ? await updateQuery.is('assigned_partner_id', null).maybeSingle()
+      : await updateQuery.eq('assigned_partner_id', userId).maybeSingle()
     setPartnerJobBusyId(null)
-    if (error) {
+    if (error || !updatedRequest) {
       notify('This job could not be updated. It may have been claimed or changed by another garage.')
       await mutateRemote()
       return
