@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
+import { useAutozyncData } from '@/lib/autozync-data'
+import type { InvoiceRow } from '@/lib/supabase/client'
 import {
   Activity,
   ArrowRight,
@@ -52,11 +54,11 @@ type Tab = 'home' | 'sos' | 'parts' | 'garage' | 'jobs' | 'offers' | 'invoice' |
 type Dialog = 'request' | 'vehicle' | 'estimate' | 'offer' | 'boost' | 'product' | 'checkout' | 'login' | 'invoice' | 'support' | 'privacy' | 'delete' | null
 type ThemeMode = 'system' | 'light' | 'dark'
 type ThemeAppearance = 'light' | 'dark'
-type Vehicle = { id: number; registration: string; model: string; year: string; fuel: string; kind: string }
+type Vehicle = { id: string; registration: string; model: string; year: string; fuel: string; kind: string }
 type Deal = { id: number; name: string; detail: string; price: number; sponsored?: boolean }
 type Product = { id: number; name: string; fitment: string; category: string; price: number; delivery: string; store: string }
 type CartLine = { product: Product; quantity: number }
-type LogEntry = { id: number; title: string; date: string; cost: number; vehicle: string }
+type LogEntry = { id: string; title: string; date: string; cost: number; vehicle: string }
 type IconType = LucideIcon
 
 const palette = {
@@ -147,6 +149,16 @@ function StatusBadge({ children, tone = 'cyan' }: { children: ReactNode; tone?: 
 }
 
 export default function AutozyncApp() {
+  const [userId, setUserId] = useState<string | null>(null)
+  const { data: remoteData, error: dataError, mutate: mutateRemote, supabase } = useAutozyncData(userId)
+  const [authMode, setAuthMode] = useState<'sign-in' | 'sign-up'>('sign-in')
+  const [authEmail, setAuthEmail] = useState('')
+  const [authPassword, setAuthPassword] = useState('')
+  const [authFullName, setAuthFullName] = useState('')
+  const [authAccountType, setAuthAccountType] = useState<'customer' | 'partner'>('customer')
+  const [authError, setAuthError] = useState('')
+  const [authBusy, setAuthBusy] = useState(false)
+  const [dialogAfterAuth, setDialogAfterAuth] = useState<Dialog>(null)
   const [role, setRole] = useState<Role>('customer')
   const [tab, setTab] = useState<Tab>('home')
   const [language, setLanguage] = useState('English')
@@ -158,12 +170,7 @@ export default function AutozyncApp() {
   const [systemTheme, setSystemTheme] = useState<ThemeAppearance>('dark')
   const [callingPartner, setCallingPartner] = useState<{ name: string; verified: boolean } | null>(null)
   const [supportContext, setSupportContext] = useState('Autozync Help Desk')
-  const [vehicles, setVehicles] = useState<Vehicle[]>([{ id: 1, registration: 'KL 07 CX 2481', model: 'Hyundai Creta', year: '2022', fuel: 'Petrol', kind: 'Car' }])
   const [vehicleForm, setVehicleForm] = useState({ registration: '', model: '', year: '', fuel: 'Petrol', kind: 'Car' })
-  const [logs, setLogs] = useState<LogEntry[]>([
-    { id: 1, title: 'Battery jumpstart', date: '12 Sep 2026', cost: 450, vehicle: 'Hyundai Creta' },
-    { id: 2, title: 'Engine oil & filter change', date: '18 Jun 2026', cost: 2490, vehicle: 'Hyundai Creta' },
-  ])
   const [deals, setDeals] = useState(seedDeals)
   const [products, setProducts] = useState(seedProducts)
   const [cart, setCart] = useState<CartLine[]>([])
@@ -173,22 +180,57 @@ export default function AutozyncApp() {
   const [modelFilter, setModelFilter] = useState('All models')
   const [yearFilter, setYearFilter] = useState('All years')
   const [activeRequest, setActiveRequest] = useState('')
+  const [requestNote, setRequestNote] = useState('')
   const [requestStage, setRequestStage] = useState(0)
   const [estimateStatus, setEstimateStatus] = useState<'pending' | 'approved' | 'declined'>('pending')
   const [estimateAmount, setEstimateAmount] = useState(3050)
   const [estimateDetails, setEstimateDetails] = useState('Brake pads ₹2,400 · Labour ₹650')
   const [orderItems, setOrderItems] = useState<CartLine[]>([])
   const [online, setOnline] = useState(true)
-  const [partnerServices, setPartnerServices] = useState<string[]>(['Oil service', 'Engine', 'AC / Electrical', 'Alignment & tyres', '24/7 towing'])
+  const [partnerServices, setPartnerServices] = useState<string[]>([])
+  const [garageName, setGarageName] = useState('')
+  const [garagePhone, setGaragePhone] = useState('')
+  const [invoiceCustomerEmail, setInvoiceCustomerEmail] = useState('')
   const [offerForm, setOfferForm] = useState({ name: '', price: '', expiry: '' })
   const [invoiceCustomer, setInvoiceCustomer] = useState('Akhil Menon')
   const [invoiceVehicle, setInvoiceVehicle] = useState('Swift Dzire · KL 07 AB 4200')
   const [invoiceRows, setInvoiceRows] = useState([{ description: 'Engine oil & filter', quantity: 1, amount: 2200 }, { description: 'Labour charge', quantity: 1, amount: 450 }])
   const [productForm, setProductForm] = useState({ name: '', fitment: '', category: 'Engine', price: '', delivery: '2–3 days' })
   const [orderStage, setOrderStage] = useState(0)
-  const [profileName, setProfileName] = useState('Akhil Menon')
+  const [profileName, setProfileName] = useState('')
   const [location, setLocation] = useState('Edappally, Kochi · Demo location')
+  const [garageAddress, setGarageAddress] = useState('')
   const [coordinates, setCoordinates] = useState('10.0261, 76.3085')
+  const vehicles: Vehicle[] = remoteData?.vehicles ?? []
+  const logs: LogEntry[] = (remoteData?.requests ?? []).map((request) => ({
+    id: request.id,
+    title: request.service_name,
+    date: new Date(request.created_at).toLocaleDateString('en-IN'),
+    cost: 0,
+    vehicle: request.vehicle_model,
+  }))
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserId(session?.user.id ?? null)
+    })
+    return () => subscription.unsubscribe()
+  }, [supabase])
+
+  useEffect(() => {
+    if (!remoteData) return
+    setProfileName(remoteData.profile?.full_name ?? '')
+    setGarageName(remoteData.garage?.business_name ?? '')
+    setGaragePhone(remoteData.garage?.phone ?? '')
+    setGarageAddress(remoteData.garage?.address ?? '')
+    setPartnerServices(remoteData.garage?.services ?? [])
+    const latestOpenRequest = remoteData.requests.find((request) => !['completed', 'cancelled'].includes(request.status))
+    setActiveRequest(latestOpenRequest?.service_name ?? '')
+  }, [remoteData])
+
+  useEffect(() => {
+    if (dataError) setToast('Could not load your Autozync data. Please refresh and try again.')
+  }, [dataError])
 
   useEffect(() => {
     const storedTheme = window.localStorage.getItem('autozync-theme')
