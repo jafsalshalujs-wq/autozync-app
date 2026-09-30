@@ -168,6 +168,82 @@
   }
 }
 
+@layer base {
+  .app-canvas[data-theme='light'] {
+    background: #eef3f7 !important;
+    color: #182636;
+  }
+
+  .app-shell[data-theme='light'] {
+    background: #f7f9fc !important;
+    color: #182636;
+    border-color: #e1e8ef;
+  }
+
+  .app-shell[data-theme='light'] [class*='bg-[#0a1019]'],
+  .app-shell[data-theme='light'] [class*='bg-[#0e1520]'] {
+    background-color: #ffffff !important;
+  }
+
+  .app-shell[data-theme='light'] [class*='bg-[#131d2b]'],
+  .app-shell[data-theme='light'] [class*='bg-[#111a27]'],
+  .app-shell[data-theme='light'] [class*='bg-[#101927]'],
+  .app-shell[data-theme='light'] [class*='bg-[#151f2d]'],
+  .app-shell[data-theme='light'] [class*='bg-[#10202d]'] {
+    background-color: #f2f6fa !important;
+  }
+
+  .app-shell[data-theme='light'] [class*='bg-[#0b131e]'],
+  .app-shell[data-theme='light'] [class*='bg-[#0c131e]'],
+  .app-shell[data-theme='light'] [class*='bg-[#0d1520]'],
+  .app-shell[data-theme='light'] [class*='bg-[#182638]'] {
+    background-color: #eaf0f5 !important;
+  }
+
+  .app-shell[data-theme='light'] [class*='bg-[#172536]'] {
+    background-color: #dcecf1 !important;
+  }
+
+  .app-shell[data-theme='light'] [class*='text-white'],
+  .app-shell[data-theme='light'] [class*='text-slate-100'],
+  .app-shell[data-theme='light'] [class*='text-slate-200'],
+  .app-shell[data-theme='light'] [class*='text-slate-300'] {
+    color: #1c2c3d !important;
+  }
+
+  .app-shell[data-theme='light'] [class*='text-slate-400'],
+  .app-shell[data-theme='light'] [class*='text-slate-500'] {
+    color: #66788a !important;
+  }
+
+  .app-shell[data-theme='light'] [class*='text-slate-600'] {
+    color: #8190a0 !important;
+  }
+
+  .app-shell[data-theme='light'] [class*='text-cyan-100'],
+  .app-shell[data-theme='light'] [class*='text-cyan-200'] {
+    color: #146579 !important;
+  }
+
+  .app-shell[data-theme='light'] [class*='text-emerald-100'],
+  .app-shell[data-theme='light'] [class*='text-emerald-200'] {
+    color: #176646 !important;
+  }
+
+  .app-shell[data-theme='light'] [class*='text-amber-100'],
+  .app-shell[data-theme='light'] [class*='text-amber-200'] {
+    color: #785014 !important;
+  }
+
+  .app-shell[data-theme='light'] [class*='text-rose-100'] {
+    color: #9f2936 !important;
+  }
+
+  .app-shell[data-theme='light'] [class*='border-white/'] {
+    border-color: rgb(28 44 61 / 12%) !important;
+  }
+}
+
 @layer utilities {
   .map-grid {
     background-image: linear-gradient(rgba(73, 102, 131, 0.09) 1px, transparent 1px), linear-gradient(90deg, rgba(73, 102, 131, 0.09) 1px, transparent 1px);
